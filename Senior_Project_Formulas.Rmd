@@ -1,0 +1,947 @@
+---
+title: "Investments Project"
+author: "Yohari Hernandez"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document: default
+---
+
+# Senior Project
+
+## Libraries required
+
+```{r}
+install.packages("quantmod")
+install.packages("stats")
+library(quantmod)
+library(TSA)
+library(tseries)
+
+```
+
+## Chapter 1 - Future value example
+
+Creating the Future value function
+
+```{r }
+fv <- function(pmt, year,freq, yield, ordinary) {
+  if(ordinary == 1) {
+    i <- yield / freq
+    n <- year*freq
+    future <- pmt * ((1+i)^n - 1)/ i}
+else
+    future <- pmt * ((1+i)^n)-1 / (i / (1+i))
+  return(future)
+
+}
+
+```
+
+```{r}
+fv(1440.82,30,12,.04,1) #calculating future value
+
+
+rates <-seq(.01,.1, by=.01)
+
+future_value <- fv(500,5,12,rates,1)
+plot(rates, future_value, main = "Future Value vs Rates")
+```
+
+###################################### 
+
+### Present Value
+
+```{r}
+#Present Value
+
+pv <-function(payment, yield, span, freq, ordinary) {
+  i<- yield/freq
+  n<- span*freq
+if(ordinary == 1){
+  presentvalue <- payment * (1-(1+i)^-n)/i}
+else
+  presentvalue <- payment * (1-(1+i)^-n)/(i/(1+i))
+return(presentvalue)
+}
+
+pv(500,.05,5,12,1)
+
+yield <-seq(.01,.1, by=.01)
+
+present_value <- pv(500, yield, 5,12,1) # the higher the yield the less we need present value will be.
+plot(rates, present_value,main = "Present Value vs Yield")
+
+
+```
+
+########################### 
+
+### Bonds
+
+```{r}
+Bondprice <- function(yield, couponrate, maturity, principal, freq) {
+  i <- yield/freq
+  r <- couponrate/freq
+  n <- maturity*freq
+  factor <- (1-(1+i)^(-n))/i
+  couponamount<-(principal* r)
+  price<- couponamount * factor + principal * ((1+i)^(-n))
+return(price)
+  
+}
+```
+
+```{r}
+Bondprice(.08,.06, 5, 1000,2)
+
+yield <-seq(.01,.1, by=.01)
+
+bond_price<- Bondprice(yield,.06,5,1000,2)
+plot(yield, bond_price, main = "Bond Price vs Yield")
+abline(v =.06, h=1000, col="red")
+
+#when the yield price is equal to .06 the bond price is exactly to 1000, otherwise it will decrease as 
+```
+
+############## 
+
+### Loan Amortization
+
+```{r}
+# calculate the balance of a loan
+balance <- c()
+interest.due <- c()
+principal.repaid <- c()
+result <- list()
+
+#Loan balance function
+loan.balance<- function(principal,rate, span, freq) {
+  j <- rate/freq
+  n <- span * freq
+  v <- 1/(1+j)
+  balance[1]<- principal
+  pmt <- balance[1] * (j/(1-v^n)) 
+  
+for(i in 2:n) {
+  interest.due[i]<- balance[i-1] * j #interest.due[1] is the interest incurred in period i
+  principal.repaid[i]<- (pmt-interest.due[i]) #principal.repaid[i] the portion of pmt used to repay the ith balance.
+  balance[i] <- balance[i-1]-principal.repaid[i]
+}
+  result<- list("Principal"=c(principal),"Payment"=c(round(pmt,2)),"Interest due"=c(round(interest.due,2)),"Principal   Repaid" =c(round(principal.repaid,2)),round(balance,2))
+  print(result)
+}
+
+```
+
+```{r}
+loan.balance(20000,.05,5,12)
+```
+
+```{r}
+Bondprice <- function(yield, couponrate, maturity, principal, freq) {
+  i <- yield/freq
+  r <- couponrate/freq
+  n <- maturity*freq
+  factor <- (1-(1+i)^(-n))/i
+  # couponamount<-(principal* r)
+  price<- principal* r * factor + principal * ((1+i)^(-n))
+return(price)
+  
+}
+```
+
+```{r}
+
+Bondprice(.06,.05,10,10000,2)
+```
+
+### Bondyield
+
+```{r}
+bondyield <- function(price, couponrate, maturity, principal, freq) #principal = facevalue
+{
+  
+  pricediff <- function(x) {Bondprice(x,couponrate, maturity,principal, #x is always equal to yield
+                                      freq) - price}
+  irr <- uniroot(pricediff, c(-0.25, 20), tol=1e-08)
+  return(irr$root)
+}
+```
+
+```{r}
+bondyield(9000,.05,10,10000,2)
+```
+
+####################################################### 
+
+## A. Time series; noise; Random Walk; Geometric Random Walk
+
+### A1. Weakly Stationarity:
+
+A fundamental assumption for ARMA(Auto-regressive/Moving average) modelling is **the Weakly stationarity**
+
+DEF: Time series{Y(t),t=1,2,...} is **weakly stationary If:**
+
+(1) $E[Y(t)]= \mu$
+(2) $Var[Y(t)] = \sigma^2$
+(3) $cov(Y_t, Y_s) = \gamma(|t-s|), any \ s,t$
+(4) $cor(Y_s, Y_t) = \rho(|t-s|), any \ s,t$
+
+```{r}
+library(TSA)
+library(tseries)
+data(larain)#Retrieving larain data
+str(larain) #Reviewing time-series
+time(larain) #Reviewing time series data from 1878 to 1992
+
+plot(larain)
+```
+
+```{r}
+data(beersales) #Retrieving beersales data
+start(beersales)#start date of the time series = 1975
+end(beersales) #end date of the time series = 1990
+```
+
+```{r}
+plot(beersales, type ="l", main = "Beer sales from January 1975 to December 1990")
+```
+
+```{r}
+data(airmiles) # pulling airmiles timeseries
+start(airmiles)#start date of the time series = 1996
+end(airmiles) #end date of the time series = 2005
+frequency(airmiles) #freq is 12 # number of samples per unit time and deltat the time interval between observations
+
+```
+
+**Note:** **(i)** Can check Weakly Stationary by observing graph.
+
+(1) Constant mean: Graph would be fluctuate vertically about a horizontal line.
+(2) Constant variance: Graph would be "within" a band about that horizontal line.
+(3) Constant for any equal "lag": $Y_s, Y_t$ have same "pattern" (both increase or both decrease)
+
+**(ii)** Weakly Stationary can be checked by Dickey-Fuller test. `adf.test()` **Alternate hypothesis: Stationary**
+
+```{r}
+adf.test(larain) #the series is borderline stationary
+paste("Since p-value > .05 we reject the null (borderline)")
+```
+
+```{r}
+
+adf.test(beersales)#the series is stationary
+paste("We have enough evidence that the time series larain is not a random walk, since p-value < .05 we fail reject the null")
+```
+
+```{r}
+adf.test(airmiles)#the series is stationary
+paste("We have enough evidence that the time series larain is not a random walk, since p-value < .05 we fail reject the null")
+```
+
+The first was border line but the 2nd and 3rd were not.
+
+(iii) Most financial time series fail to be weakly stationary. So other models would be explored.
+
+### **A2. NOISE:** Z(t) is called **Noise** if regression model residuals is N(0,sigma\^2):
+
+(1) E[Z(t)]=0
+(2) Var[Z(t)]=$\sigma^2$
+(3) cov(Z(s),Z(t))=0 [uncorrelated] (totally random)
+
+Z(t) Is a Gaussian Noise If Z(t)\~iid N(0,$\sigma^2$)
+
+```{r}
+x <- c(0,rnorm(99,0,2))
+plot(x, type="l", main="Gaussian noise, N(0,2)")
+```
+
+NOTES; Noise iff (i) Mean 0: Graph would be about 0 (ii) Variance is constant, (iii) Randomly distributed about 0
+
+Noises are weakly stationary
+
+## **A3. RANDOM WALK:**
+
+Let Y(t)=$\sum^tZ(t)$, where Z(t) Is a noise than Y is a Random Walk (a RW Is the cumulative sum of a Noise.)
+
+In general, Y(t) Is a Random Walk iff, (1) E[Y(t)]=0 (2) Var[Y(t)] = t$\sigma^2$ (3) Cov(Y(t), Y(s))=0 (4) Cor(Y(t), Y(s))=0
+
+```{r}
+y <- c(0,cumsum(x))
+plot(y, type = "l", main = "Random Walk")
+abline(h=0, col="red")
+```
+
+Unless y(0)is specified, otherwise it will be randomly chosen.
+
+**NOTES: For a Random Walk** (i) **Mean** in the long run would be 0: The graph is fluctuating about 0. (ii) **Non-constant variance:** The graph gets "wider" as t progresses However, graph would eventually return to 0 (by(i)) (iii) Zero autocorrelation.
+
+## A4. Wiener process(or Brownin Motion)
+
+NOTE: Any process W(t) can be written as: $W(t) = W(0) + \sum_{i=1}^{i=t} \bigtriangleup W(i), where \bigtriangleup W(i)=W(i)-W(i-1)$
+
+$\bigtriangleup W(i)$ is called Increment or change at i
+
+Any process can be written as "initial value" + "sum of the changes"
+
+**A Weiner Process** (or Brownian Motion) W(i), if the:
+
+Increments: $\bigtriangleup W(t) = W(t+ \bigtriangleup t) - W(t)$ satisfy
+
+$\bigtriangleup W(t) = \in \sqrt{\bigtriangleup t} \ where \in \sim N(0,1), or \bigtriangleup W(i) \sim N(0,\sqrt{\bigtriangleup t})$
+
+Ie, the increments are Normal distributed.
+
+## NOTES
+
+**(i)** $\bigtriangleup W(t) \sim N(0, \sqrt{\bigtriangleup t}). Or \bigtriangleup W(t) \sim N(0,\bigtriangleup t).. for Variance$
+
+We say the increments are distributed as a Normal Noise.
+
+**(ii)** For a Wiener process W(t) $W(t)=W(0)+ \sum_{i=1}^{i=t} \bigtriangleup W(i)$ W(t) becomes a Random Walk. (Review A3 Random Walk)
+
+(i) E[w(t)]= w(0)
+(ii) Var[w(t)] = t($\bigtriangleup t$)
+(iii) Cov(w(t),w(s))=0
+
+**(ii) If time is discretized into n increments:** {$t_0, t_1, t_2,..., t_{n-1},t_n = t \cdot \bigtriangleup t= \frac{t}{n}$}
+
+$W(t) \sim N(W(0),t\sqrt{\bigtriangleup t}. Var(w_t - w_0) = n(\bigtriangleup t) = n(\frac{t}{n}) = t$
+
+(a) The mean is W(0).
+(b) Variance of a Weiner process Increases linearly with the length of time. The graph is wider and wider as t progress. (Similar with Random Walk graph)
+
+**EXAMPLE: a Wiener process discretized with n=252 days**
+
+```{r}
+set.seed(100)
+n <-252  #stock price days in the year
+epsilon <- rnorm(n) #epsilon noise N(0,1)
+mu <- 5
+sigma <- 2
+deltat <- 1/252
+```
+
+```{r}
+plot(epsilon, type = "l", main =  "Normal Noise N(0,1)") #add into report
+```
+
+## Wienner
+
+```{r}
+w1 <- cumsum(epsilon*sqrt(1/n)) # The random walk
+w1[1] #first element is 0.04773864
+w1<-c(0,w1)
+plot(w1, type = "l", main= "Wiener Processes")
+
+w2<- cumsum(rnorm(n)*sqrt(1/n))
+w2<-c(0,w2)
+
+lines(w2, col="blue")
+
+
+w3 <- cumsum(rnorm(n)*sqrt(1/n))
+lines(w3, col="green")
+
+abline(h=0, lty="dashed")
+```
+
+## Wiener Process with Drift
+
+##Problem of Wiener Process with Drift
+
+```{r}
+
+Wiener1 <- (mu * deltat)  + (sigma * w1)
+
+
+mu2 <- 10
+sigma2 <- 2
+deltat2 <- 1/252
+
+Wiener2 <- (mu2 * deltat2)  + (sigma2 * w2)
+
+plot(Wiener1, type ="l", main = "Wiener Process with Drift")
+abline(h=0, lty="dashed")
+lines(Wiener2, col="green")
+legend("bottomleft", c("black : mu = 5, green: mu = 10"))
+
+```
+
+## Implementation
+
+```{r}
+library(quantmod)
+```
+
+```{r}
+TSLA <- getSymbols("TSLA", from=start, to=end, auto.assign=F)
+
+dim(TSLA) #757 and 6
+
+head(TSLA)
+```
+
+```{r}
+library(quantmod)
+library(TSA)
+library(tseries)
+
+
+start<- as.Date("2019-12-31")
+end <- as.Date("2022-12-31")
+
+TSLA <- getSymbols("TSLA", from=start, to=end, auto.assign=F)
+
+TSLA.Close <- TSLA$TSLA.Close
+dim(TSLA) #757 and 6
+
+head(TSLA)
+
+class(TSLA) #XTs 
+
+plot(TSLA$TSLA.Close, type="l")
+
+
+```
+
+```{r}
+TSLA <- getSymbols("TSLA", from=start, to=end, auto.assign=F)
+
+TSLA.Close <- TSLA$TSLA.Close
+TSLA.return <- dailyReturn(TSLA$TSLA.Close)
+
+plot( TSLA.return, type ="l")
+
+```
+
+```{r}
+
+TSLA <- getSymbols("TSLA", from=start, to=end, auto.assign=F)
+
+TSLA.Close <- TSLA$TSLA.Close
+TSLA.return <- dailyReturn(TSLA$TSLA.Close)
+TSLA.logret <- log(1+ TSLA.return)
+
+plot( TSLA.logret, type ="l")
+```
+
+```{r}
+rbar<- mean(TSLA.logret)
+s<- sd(TSLA.logret)
+N<-length(TSLA.logret)# 757
+sigma.sqr <- s^2*N  # 1.562927
+mu <- rbar*N   + sigma.sqr/2  # 2.26689
+sigma<- sqrt(sigma.sqr) # 1.250171
+cat("mu and sigma for the span", c(mu, sigma))
+
+```
+
+```{r}
+TSLA.return
+```
+
+## Calculate the Cumulative Product (or Cumulative Return) of returns \Pi (1+R\left(i\right))
+
+```{r}
+
+# TSLA.CP <- cumprod(1+ TSLA.return)
+
+prod(1+TSLA.return) - 1 # the formula
+
+library(PerformanceAnalytics)
+
+Return.cumulative(TSLA.return) # the shortcut
+
+```
+
+#####################################################################################33
+
+```{r}
+mean(TSLA.return)
+
+summary(TSLA.return)
+
+hist(TSLA.return)
+
+qqnorm(TSLA.return) #checking normality
+qqline(TSLA.return)
+
+Box.test(TSLA.return)
+
+install.packages(boot)
+library(moments)
+skewness(TSLA.return) #no skewness
+
+kurtosis(TSLA.return) # above 3
+
+TSLA.logret<- log(1+TSLA.return)
+plot(TSLA.logret)
+
+```
+
+## This will be the analysis of Chevron
+
+```{r}
+start<- as.Date("2019-12-31")
+end <- as.Date("2022-12-31")
+
+CVX <- getSymbols("CVX", from=start, to=end, auto.assign=F) #Loading Chevron stock
+
+CVX.Close <- CVX$CVX.Close
+
+
+CVX.return <- dailyReturn(CVX$CVX.Close)
+
+plot(CVX.Close, type ="l")
+```
+
+#Loading SHELL INC information
+
+```{r}
+getSymbols("SHEL", from = "2020-12-31", to="2021-12-31", auto.assign = F)
+ 
+```
+
+```{r}
+SHEL <- getSymbols("SHEL", from="2020-12-31", to = "2022-12-31", auto.assign = F)
+class(SHEL)
+SHEL.Close <-  SHEL$SHEL.Close
+plot(SHEL$SHEL.Close)
+SHEL.return <- dailyReturn(SHEL$SHEL.Close)
+plot(SHEL.return)
+SHEL.yearly.return <- mean(SHEL.return) * 250
+SHEL.yearly.return
+```
+
+## index(), Cl(); Ad(); as.Date(); subset of an xts-object
+
+```{r}
+date<- as.Date(index(TSLA.Close), format="%Y-%m-%d")
+
+data1<- subset(TSLA.Close,  date >="2019-12-31" & date<= "2021-12-31")
+
+```
+
+A.  Beta of a stock
+
+<!-- -->
+
+1.  Read multiple stock prices
+
+## Merging prices: merge()
+
+```{r}
+multi<- TSLA[  , 4]
+multi <- merge(multi, TSLA[  ,4])
+multi <- merge(multi, SHEL[  ,4])
+
+class(multi)    # xts object
+```
+
+### Plot closing prices;NOTE: Its not a good plot
+
+```{r}
+plot(multi[  ,1], type="l", main=" Close Prices TSLA, SHEL, CVX")
+lines(multi[  ,2], col="red")
+lines(multi[  ,3], col="blue")
+```
+
+##### Many stocks ; Closing prices; (another way)
+
+```{r}
+prices<- NULL
+TickerList <- c( "TSLA", "SHEL", "CVX")
+for (Ticker in TickerList){
+  prices <-cbind(prices, getSymbols.yahoo(Ticker, from=start, to=end, 
+                                    verbose=F, auto.assign=F) [  ,4])} 
+
+
+class(prices)    # xts,  index column shows up
+```
+
+1.  Calculate Returns (either use dailyReturn() package quantmod, or ROC(), package TTR)
+
+```{r}
+returns<- ROC(prices)   #xts object;in one step; 1st row has NA's
+returns<- na.omit(returns)
+```
+
+2.  ChartsPerformanceSummary (package PerformanceAnalytics)
+
+library(quantmod)
+
+### Convert xts object to dataframe to use charts.PerformanceSummary()
+
+```{r}
+TSLA.Ret.df<- data.frame(TSLA.return)
+
+charts.PerformanceSummary(TSLA.Ret.df, main="TSLA performance")
+
+```
+
+```{r}
+TSLA.mu <- mean(TSLA.return)
+TSLA.mu
+```
+
+```{r}
+TSLA.mu.annual<- 252*AAPL.mu # 252 days?
+TSLA.mu.annual
+
+```
+
+```{r}
+TSLA.sigma <- sd(TSLA.return)
+TSLA.sigma.annual<- sqrt(252)*TSLA.sigma
+TSLA.sigma.annual
+
+
+#NOTE:   expected return is 25.80%;  risk is 72.1%-  High expected return and high risk
+
+```
+
+3.  Correlation between stocks
+
+NOTE:
+
+```{r}
+cor(returns)
+```
+
+REMARK: SHEL ,CVX returns are in HIGH correlation, since they are in the same industry(OIL&GAS). So the portfolio risk (variance/standard deviation) would be HIGH.
+
+Sometimes, need to choose stocks from different industries to reduce the correlation is LOW, the portfolio risk is also LOW.
+
+```{r}
+chart.Correlation(returns)
+
+```
+
+4.  Benchmark Portfolio: is used to calculate the beta coefficient of a stock
+
+SP500, Dow Jones; Nikei; Hangshen market index.
+
+```{r}
+djia <-getSymbols("^DJI", from=start, to=end, auto.assign=F)
+nikei <-getSymbols("^N225",from=start, to=end, auto.assign=F)
+hangshen <-getSymbols("^HSI",from=start, to=end, auto.assign=F)
+```
+
+```{r}
+plot(djia[   ,4], type="l", col="red")
+lines(nikei[  ,4], col="blue", lwd=2)
+lines(hangshen[  ,4], col="green", lwd=2)
+```
+
+REMARK: All Market portfolio behave almost the same (high correlation) \# SP500 GSPC in Yahoo Finance (bench portfolio, S&P 500)
+
+```{r}
+bench <- getSymbols("^GSPC", auto.assign=F, src="yahoo",  from=start, to=end)[ ,4]
+
+```
+
+5.  Risk-free rate: is used to calculate the beta coefficient of a stock
+
+############################################# 
+
+###### Risk free rate ; Benchmark (SP500)
+
+############################################# 
+
+```{r}
+## risk-free rate(changing wrt time)
+rf<-getSymbols("TB3MS",src="FRED" ,auto.assign = F)
+
+rf<-getSymbols("TB3MS",src="FRED" ,auto.assign = F)
+head(rf)
+```
+
+```{r}
+rf<-getSymbols("TB3MS",src="FRED" ,auto.assign = F) # TB3MS 3-Month Treasury Bill Secondary Market Rate, Discount Basis 
+date<- as.Date(index(rf))
+# rf1 <- rf[ date >= "2019-12-31"  & date<="2022-12-31",  ]
+
+rfr <- window(rf,start = start, end=end)
+```
+
+```{r}
+head(rf1)
+```
+
+```{r}
+rf1<- rf1/100
+head(rf1)
+```
+
+6.  Market portfolio index( benchmark portfolio); SP500
+
+```{r}
+bench<-getSymbols.yahoo("^GSPC", from=start, to=end, periodicity = "daily",auto.assign=F)[  ,4]
+
+bench.returns <- dailyReturn(bench)  
+
+```
+
+7.  Compare stocks performance with bench mark portfolio
+
+################################################ 
+
+######## Plot TSLA, SHEL, CVX and bench portfolio (market portfolio)
+
+################################################ 
+
+```{r}
+
+bench.CP <- cumprod(1+bench.returns)
+
+SHEL.CP<- cumprod(1+ SHEL.return)
+TSLA.CP <- cumprod(1+ TSLA.return)
+CVX.CP <- cumprod(1+ CVX.return)
+
+plot(bench.CP, type="l", ylim=c(0, 3))
+lines(TSLA.CP, type="l", col="blue")
+
+lines(CVX.CP, type="l", col="red")
+
+lines(SHEL.CP, type="l", col="green")
+
+```
+
+8.  Calculate beta coefficients of a stock
+
+#### beta's using regression model, assume riskfree rate is changing
+
+```{r}
+TSLA.excess <- TSLA.return -rf1
+bench.excess <- bench.returns -rf1
+TSLA.beta<- coefficients(lm(TSLA.excess ~ bench.excess ))[2]
+TSLA.beta
+```
+
+```{r}
+CVX.excess <- CVX.return -rf1
+bench.excess <- bench.returns -rf1
+CVX.beta<- coefficients(lm(CVX.excess ~ bench.excess ))[2]
+CVX.beta
+```
+
+9.  CAPM Beta (Capital Asset Price Model): We have another Beta called CAPM Beta,
+
+Which calculation also involves the Stock Excess Return , Market Excess Return.
+
+$$CAPM.?? =  cov(R-rf,R_M-rf)/var(R_M )$$
+
+```{r}
+CAPM.beta<- cov(TSLA.return, bench.returns)/var(bench.returns)
+CAPM.beta
+
+```
+
+### DIRECTIONS: Choose 5 stocks, from different industries( IT, automobiles, retails, drugs) , over a time span of 2 years .
+
+### Review Supplement#3
+
+        Choose the optimal portfolio , using highest Sharp coefficient: 
+
+```{r}
+library(quantmod)
+library(TSA)
+library(tseries)
+
+start<- as.Date("2020-12-31")
+end <- as.Date("2022-12-31")
+
+TSLA <- getSymbols("TSLA", from=start, to=end, auto.assign=F)#loading Tesla
+TSLA.Close <- TSLA$TSLA.Close
+TSLA.return <- dailyReturn(TSLA$TSLA.Close)
+TSLA.logret <- log(1+ TSLA.return)
+
+CVX <- getSymbols("CVX", from=start, to=end, auto.assign=F)#loading Chevron
+CVX.Close <- CVX$CVX.Close
+CVX.return <- dailyReturn(CVX$CVX.Close)
+CVX.logret <- log(1+ CVX.return)
+
+COST <- getSymbols("COST", from=start, to=end, auto.assign=F) #loading Costco
+COST.Close <- COST$COST.Close
+COST.return <- dailyReturn(COST$COST.Close)
+COST.logret <- log(1+ COST.return)
+
+PEP <- getSymbols("PEP", from=start, to=end, auto.assign=F) #loading Pepsi
+PEP.Close <- PEP$PEP.Close
+PEP.return <- dailyReturn(PEP$PEP.Close)
+PEP.logret <- log(1+ PEP.return)
+
+AMC <- getSymbols("AMC", from=start, to=end, auto.assign=F) #loading AMC Theathers
+AMC.Close <- AMC$AMC.Close
+AMC.return <- dailyReturn(AMC$AMC.Close)
+AMC.logret <- log(1+ AMC.return)
+
+```
+
+1.  Beta \> 1.5 or 2
+
+```{r}
+bench<-getSymbols.yahoo("^GSPC", from=start, to=end, periodicity = "daily",auto.assign=F)[ ,4]
+bench.returns <- dailyReturn(bench)
+```
+
+```{r}
+#find beta of Costco
+bench.excess <- bench.returns -rf1
+COST.excess <- COST.return - rf1
+COST.beta<- coefficients(lm(COST.excess ~ bench.excess ))[2]
+
+COST.beta # .4202
+
+
+#find beta of Tesla
+TSLA.excess <- TSLA.return - rf1
+TSLA.beta<- coefficients(lm(TSLA.excess ~ bench.excess ))[2]
+
+TSLA.beta # 1.8561
+
+#find beta of Chevron
+CVX.excess <- CVX.return - rf1
+CVX.beta<- coefficients(lm(CVX.excess ~ bench.excess ))[2]
+
+CVX.beta # .2882
+
+#find beta of Pepsico
+PEP.excess <- PEP.return - rf1
+PEP.beta<- coefficients(lm(PEP.excess ~ bench.excess ))[2]
+
+PEP.beta # .3397
+
+#find beta of AMC Theathers
+AMC.excess <- AMC.return - rf1
+AMC.beta<- coefficients(lm(AMC.excess ~ bench.excess ))[2]
+
+AMC.beta # 3.4235
+
+```
+
+2.  PE \> 20
+
+```{r}
+ wts1 <- c(.20,.20,.20,.20,.20)
+```
+
+3.  Investigate the Annualized Expected returns/Annualized Risk for each stock.
+
+## Portfolio expected return
+
+```{r}
+# cbind() all returns of those stocks into one xts-object, named "returns"
+returns <- cbind(TSLA.return,COST.return,CVX.return,PEP.return, AMC.return)
+colnames(returns)<- c("TSLA.return","COST.return","CVX.return","PEP.return", "AMC.return")
+head(returns)
+```
+
+#calculate the expected return (average) of all those stocks
+
+```{r}
+return.means<- apply(returns,2,mean)
+return.means
+
+
+
+```
+
+```{r}
+port.ret1 <-252* t(wts) %*% return.means
+port.ret1
+
+## Calculate the Portfolio variance/risk
+cov <- cov(returns)
+cov.annual <- 252*cov
+port.var <- t(wts1) %*% cov.annual %*% wts1
+port.var
+```
+
+```{r}
+port.sd <- sqrt(port.var)
+port.sd 
+```
+
+4.  Correlation
+
+```{r}
+library(PerformanceAnalytics)
+chart.Correlation(returns)
+```
+
+################################################################################################################################################################################################################################################################################################################################################################################# 
+
+5.  Perform portfolio analysis as in part B. Plot the Efficient Frontier.
+
+```{r}
+# Create weights, sum is 1.0, from -2.0 to 2.0 : A For-loop
+
+wts<-c(0,0,0,0,0)
+
+for (i in 1:100){
+   wt <- c(0,0,0,0,0)
+  wt[1]<- runif(1, -2,2)
+  wt[2]<- runif(1, -2,2)
+  wt[3]<- runif(1, -2,2)
+  wt[4]<- runif(1, -2,2)
+  wt[5]<- 1-wt[1] -wt[2] -wt[3] -wt[4]
+ 
+ 
+  wts<- cbind(wts,wt )
+}
+
+head(wts)
+# wts<-c(0,0,0,0,0)
+# for (i in 1:100){
+# wt<- c(runif(1, -2,2),runif(1, -5,5), 1 -wt[1]-wt[2]-wt[3]-wt[4]-wt[5])
+# wts<- cbind(wts,wt )
+# }
+```
+
+```{r}
+return.means<- apply(returns,2,mean)
+return.means
+```
+
+```{r}
+cov<-cov(returns)
+
+# port.variance <-c()
+# for (i in 1:101) {
+# port.variance[i] <- t(wts)[i, ] %*% cov %*% wts[ , i ]
+# }
+# head(port.variance)
+
+```
+
+```{r}
+# port.ret <- c() 
+# for (i in 1:101){ port.ret[i] <- t(wts)[i, ] %*% return.means } 
+# head(port.ret)
+
+```
+
+```{r}
+port.risk <-sqrt(port.variance)
+head(port.risk)
+
+```
+
+```{r}
+
+
+```
+
+```{r}
+plot(port.risk, port.return, type="b",
+main="Efficient Frontier, AAPL+TSLA+FMST")
+```
+
+6.  Choose the highest Sharp coefficient:
+
+```{r}
+
+```
